@@ -1,0 +1,30 @@
+hosts:
+  hostA:
+    ip: 10.0.0.11
+    node_name: pve-node-a
+    datastore_id: local-lvm
+    bridge: vmbr0
+
+containers:
+  - name: app-1
+    host: hostA
+    template_file_id: local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst
+    os_type: ubuntu
+    hostname: app-1
+    ip: 10.0.0.101/24
+    gateway: 10.0.0.1
+    # vm_id omitted -> resolved from Proxmox next-id API.
+    # unprivileged omitted -> defaults to true.
+    # cores omitted -> defaults to 2.
+    # memory_mb omitted -> defaults to 2048.
+    # disk_size_gb omitted -> defaults to 8.
+
+  - name: app-2
+    host: hostA
+    vm_id: 210
+    template_file_id: local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst
+    os_type: ubuntu
+    hostname: app-2
+    ip: 10.0.0.102/24
+    gateway: 10.0.0.1
+    unprivileged: false

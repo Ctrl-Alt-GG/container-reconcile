@@ -1,0 +1,7 @@
+name: container-reconcile
+runtime:
+  name: python
+description: Create Proxmox LXC containers from a single YAML file.
+config:
+  container-reconcile:containersFile:
+    default: containers.yaml

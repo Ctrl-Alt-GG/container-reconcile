@@ -1,0 +1,4 @@
+pulumi
+pulumi-proxmoxve
+PyYAML
+requests
