@@ -5,24 +5,32 @@ from container_reconcile.infrastructure.proxmox_nextid_client import ProxmoxNext
 
 
 class VmIdAllocator:
-    """Allocates missing VM IDs using Proxmox next-id."""
+    """Allocates missing VM IDs for a single host using Proxmox next-id."""
 
     def __init__(self, next_id_client: ProxmoxNextIdClient) -> None:
         self._next_id_client = next_id_client
 
-    def allocate(self, spec: DeploymentSpec) -> None:
-        missing_indexes = [
-            i for i, container in enumerate(spec.containers) if container.vm_id is None
+    def allocate_for_host(self, spec: DeploymentSpec, host_alias: str) -> None:
+        """Fill in missing vm_ids for containers on *host_alias*."""
+        host_indices = [
+            i
+            for i, c in enumerate(spec.containers)
+            if c.host == host_alias
         ]
-        if not missing_indexes:
+        missing_indices = [
+            i for i in host_indices if spec.containers[i].vm_id is None
+        ]
+        if not missing_indices:
             return
 
         explicit_vm_ids = {
-            container.vm_id for container in spec.containers if container.vm_id is not None
+            spec.containers[i].vm_id
+            for i in host_indices
+            if spec.containers[i].vm_id is not None
         }
         candidate = self._next_id_client.get_next_id()
 
-        for idx in missing_indexes:
+        for idx in missing_indices:
             while candidate in explicit_vm_ids:
                 candidate += 1
             spec.containers[idx].vm_id = candidate

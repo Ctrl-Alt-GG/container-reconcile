@@ -33,12 +33,30 @@ class DeploymentService:
         raw_spec = self._spec_loader.load(yaml_path)
         deployment_spec = self._spec_service.to_deployment_spec(raw_spec)
 
-        if deployment_spec.has_missing_vm_ids():
-            connection = self._config_reader.get_proxmox_connection_config()
+        # --- Allocate missing vm_ids per host ---
+        for host_alias in deployment_spec.hosts_with_missing_vm_ids():
+            host = deployment_spec.hosts[host_alias]
+            connection = self._config_reader.get_host_connection_config(
+                host_alias, host
+            )
             nextid_client = ProxmoxNextIdClient(connection)
-            vm_id_allocator = VmIdAllocator(nextid_client)
-            vm_id_allocator.allocate(deployment_spec)
+            allocator = VmIdAllocator(nextid_client)
+            allocator.allocate_for_host(deployment_spec, host_alias)
 
+        # --- Create an explicit Pulumi provider per host ---
+        providers: Dict[str, proxmoxve.Provider] = {}
+        for alias, host in deployment_spec.hosts.items():
+            connection = self._config_reader.get_host_connection_config(alias, host)
+            providers[alias] = proxmoxve.Provider(
+                f"proxmox-{alias}",
+                endpoint=connection.endpoint,
+                insecure=connection.insecure,
+                api_token=connection.api_token,
+                username=connection.username,
+                password=connection.password,
+            )
+
+        # --- Deploy container resources ---
         created_resources: List[proxmoxve.ct.Container] = []
         vm_ids_by_name: Dict[str, int] = {}
         host_by_name: Dict[str, str] = {}
@@ -50,7 +68,13 @@ class DeploymentService:
                 index=idx + 1,
                 container_name=container.name,
             )
-            resource = proxmoxve.ct.Container(resource_name, **container_args)
+            resource = proxmoxve.ct.Container(
+                resource_name,
+                **container_args,
+                opts=pulumi.ResourceOptions(
+                    provider=providers[container.host],
+                ),
+            )
 
             created_resources.append(resource)
             assert container.vm_id is not None

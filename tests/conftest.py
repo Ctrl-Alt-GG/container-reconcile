@@ -32,11 +32,17 @@ def _install_fallback_pulumi_module() -> None:
     class RunError(Exception):
         pass
 
+    class ResourceOptions:
+        def __init__(self, **kwargs: Any) -> None:
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
     def export(_key: str, _value: Any) -> None:
         return None
 
     module.Config = Config
     module.RunError = RunError
+    module.ResourceOptions = ResourceOptions
     module.export = export
     sys.modules["pulumi"] = module
 
@@ -83,6 +89,11 @@ def _install_fallback_pulumi_proxmoxve_module() -> None:
     class ContainerOperatingSystemArgs(_FakeArgs):
         pass
 
+    class Provider:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+    module.Provider = Provider
     module.ct = SimpleNamespace(
         Container=Container,
         ContainerCpuArgs=ContainerCpuArgs,
@@ -136,6 +147,8 @@ def sample_host() -> HostSpec:
         node_name="pve-node-a",
         datastore_id="local-lvm",
         bridge="vmbr0",
+        endpoint="https://10.0.0.11:8006",
+        insecure=False,
     )
 
 

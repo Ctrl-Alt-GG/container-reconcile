@@ -1,23 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Optional
 
 import pulumi
 
-from container_reconcile.domain.errors import SpecError
-
-
-@dataclass(slots=True)
-class ProxmoxConnectionConfig:
-    endpoint: str
-    insecure: bool
-    api_token: Optional[str]
-    username: Optional[str]
-    password: Optional[str]
-    otp: Optional[str]
-    auth_ticket: Optional[str]
-    csrf_prevention_token: Optional[str]
+from container_reconcile.domain.models import HostSpec, ProxmoxConnectionConfig
 
 
 class ConfigReader:
@@ -30,54 +17,52 @@ class ConfigReader:
     def get_containers_file(self) -> str:
         return self._app_cfg.get("containersFile") or "containers.yaml"
 
-    def get_proxmox_connection_config(self) -> ProxmoxConnectionConfig:
-        endpoint = self._first_non_empty(
-            self._app_cfg.get("proxmoxEndpoint"),
-            self._provider_cfg.get("endpoint"),
-        )
-        if not endpoint:
-            raise SpecError(
-                "Proxmox endpoint is required for vm_id auto-allocation. "
-                "Set 'proxmoxve:endpoint' (or 'container-reconcile:proxmoxEndpoint')."
-            )
+    def get_host_connection_config(
+        self, alias: str, host: HostSpec
+    ) -> ProxmoxConnectionConfig:
+        """Build connection config for a specific host.
 
-        insecure = self._first_non_none_bool(
-            self._app_cfg.get_bool("proxmoxInsecure"),
-            self._provider_cfg.get_bool("insecure"),
-            False,
-        )
-
+        Per-host credentials are looked up first (e.g. ``<alias>.apiToken``),
+        then global app-level keys (``proxmoxApiToken``), and finally the
+        ``proxmoxve`` provider config (``apiToken`` / ``api_token``).
+        """
         api_token = self._first_non_empty(
+            self._app_cfg.get(f"{alias}.apiToken"),
             self._app_cfg.get("proxmoxApiToken"),
             self._provider_cfg.get("apiToken"),
             self._provider_cfg.get("api_token"),
         )
         username = self._first_non_empty(
+            self._app_cfg.get(f"{alias}.username"),
             self._app_cfg.get("proxmoxUsername"),
             self._provider_cfg.get("username"),
         )
         password = self._first_non_empty(
+            self._app_cfg.get(f"{alias}.password"),
             self._app_cfg.get("proxmoxPassword"),
             self._provider_cfg.get("password"),
         )
         otp = self._first_non_empty(
+            self._app_cfg.get(f"{alias}.otp"),
             self._app_cfg.get("proxmoxOtp"),
             self._provider_cfg.get("otp"),
         )
         auth_ticket = self._first_non_empty(
+            self._app_cfg.get(f"{alias}.authTicket"),
             self._app_cfg.get("proxmoxAuthTicket"),
             self._provider_cfg.get("authTicket"),
             self._provider_cfg.get("auth_ticket"),
         )
         csrf_prevention_token = self._first_non_empty(
+            self._app_cfg.get(f"{alias}.csrfToken"),
             self._app_cfg.get("proxmoxCsrfToken"),
             self._provider_cfg.get("csrfPreventionToken"),
             self._provider_cfg.get("csrf_prevention_token"),
         )
 
         return ProxmoxConnectionConfig(
-            endpoint=endpoint,
-            insecure=insecure,
+            endpoint=host.endpoint,
+            insecure=host.insecure,
             api_token=api_token,
             username=username,
             password=password,
@@ -92,11 +77,4 @@ class ConfigReader:
             if isinstance(value, str) and value.strip():
                 return value
         return None
-
-    @staticmethod
-    def _first_non_none_bool(*values: Optional[bool]) -> bool:
-        for value in values:
-            if value is not None:
-                return bool(value)
-        return False
 

@@ -1,7 +1,18 @@
 name: container-reconcile
 runtime:
   name: python
-description: Create Proxmox LXC containers from a single YAML file.
+description: Create Proxmox LXC containers across multiple hosts from a single YAML file.
 config:
   container-reconcile:containersFile:
     default: containers.yaml
+  # Per-host credentials — replace <alias> with the host key from your YAML.
+  # container-reconcile:<alias>.apiToken:
+  #   secret: true
+  # container-reconcile:<alias>.username:
+  #   secret: true
+  # container-reconcile:<alias>.password:
+  #   secret: true
+  #
+  # Global fallbacks (used when per-host keys are not set):
+  # container-reconcile:proxmoxApiToken:
+  #   secret: true

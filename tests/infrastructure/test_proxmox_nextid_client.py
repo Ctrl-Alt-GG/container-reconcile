@@ -8,7 +8,7 @@ import requests
 
 import container_reconcile.infrastructure.proxmox_nextid_client as client_module
 from container_reconcile.domain.errors import SpecError
-from container_reconcile.infrastructure.config_reader import ProxmoxConnectionConfig
+from container_reconcile.domain.models import ProxmoxConnectionConfig
 from container_reconcile.infrastructure.proxmox_nextid_client import ProxmoxNextIdClient
 
 

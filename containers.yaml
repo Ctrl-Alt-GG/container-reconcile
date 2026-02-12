@@ -4,6 +4,16 @@ hosts:
     node_name: pve-node-a
     datastore_id: local-lvm
     bridge: vmbr0
+    # endpoint omitted -> defaults to https://10.0.0.11:8006
+    # insecure omitted -> defaults to false
+
+  hostB:
+    ip: 10.0.0.12
+    node_name: pve-node-b
+    datastore_id: local-lvm
+    bridge: vmbr1
+    endpoint: https://10.0.0.12:8006
+    insecure: true
 
 containers:
   - name: app-1
@@ -28,3 +38,11 @@ containers:
     ip: 10.0.0.102/24
     gateway: 10.0.0.1
     unprivileged: false
+
+  - name: db-1
+    host: hostB
+    template_file_id: local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst
+    os_type: ubuntu
+    hostname: db-1
+    ip: 10.0.0.201/24
+    gateway: 10.0.0.1

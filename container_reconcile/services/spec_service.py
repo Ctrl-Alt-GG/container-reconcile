@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 from container_reconcile.domain.errors import SpecError
 from container_reconcile.domain.models import (
@@ -11,6 +11,8 @@ from container_reconcile.domain.models import (
     REQUIRED_HOST_FIELDS,
 )
 from container_reconcile.domain.validators import FieldValidators
+
+_DEFAULT_PROXMOX_PORT = 8006
 
 
 class SpecService:
@@ -51,25 +53,37 @@ class SpecService:
                 raise SpecError(f"Host '{host_name}' field 'ip' must be a string.")
             FieldValidators.assert_ip(host_ip, f"hosts.{host_name}.ip")
 
-            node_name = host_value["node_name"]
-            datastore_id = host_value["datastore_id"]
-            bridge = host_value["bridge"]
-            for field_name, field_value in (
-                ("node_name", node_name),
-                ("datastore_id", datastore_id),
-                ("bridge", bridge),
-            ):
-                if not isinstance(field_value, str) or not field_value.strip():
-                    raise SpecError(
-                        f"Host '{host_name}' field '{field_name}' must be a non-empty string."
-                    )
+            ctx = f"hosts.{host_name}"
+            node_name = FieldValidators.assert_non_empty_string(
+                host_value["node_name"], f"{ctx}.node_name"
+            )
+            datastore_id = FieldValidators.assert_non_empty_string(
+                host_value["datastore_id"], f"{ctx}.datastore_id"
+            )
+            bridge = FieldValidators.assert_non_empty_string(
+                host_value["bridge"], f"{ctx}.bridge"
+            )
+
+            raw_endpoint = host_value.get("endpoint")
+            if raw_endpoint is not None:
+                endpoint = FieldValidators.assert_non_empty_string(
+                    raw_endpoint, f"{ctx}.endpoint"
+                )
+            else:
+                endpoint = f"https://{host_ip}:{_DEFAULT_PROXMOX_PORT}"
+
+            insecure = host_value.get("insecure", False)
+            if not isinstance(insecure, bool):
+                raise SpecError(f"Host '{host_name}' field 'insecure' must be a boolean.")
 
             normalized_hosts[host_name] = HostSpec(
                 alias=host_name,
                 ip=host_ip,
-                node_name=node_name.strip(),
-                datastore_id=datastore_id.strip(),
-                bridge=bridge.strip(),
+                node_name=node_name,
+                datastore_id=datastore_id,
+                bridge=bridge,
+                endpoint=endpoint,
+                insecure=insecure,
             )
 
         return normalized_hosts
@@ -79,8 +93,8 @@ class SpecService:
         containers_obj: List[Any],
         hosts: Dict[str, HostSpec],
     ) -> List[ContainerSpec]:
-        seen_container_names: set[str] = set()
-        seen_vm_ids: set[int] = set()
+        seen_container_names: Set[str] = set()
+        seen_vm_ids_per_host: Dict[str, Set[int]] = {alias: set() for alias in hosts}
         normalized_containers: List[ContainerSpec] = []
 
         for index, container_value in enumerate(containers_obj):
@@ -92,23 +106,26 @@ class SpecService:
                 if field not in container_value:
                     raise SpecError(f"{context} is missing required field '{field}'.")
 
-            name = container_value["name"]
+            name = FieldValidators.assert_non_empty_string(
+                container_value["name"], f"{context}.name"
+            )
             host_ref = container_value["host"]
-            template_file_id = container_value["template_file_id"]
-
-            if not isinstance(name, str) or not name.strip():
-                raise SpecError(f"{context}.name must be a non-empty string.")
             if not isinstance(host_ref, str) or host_ref not in hosts:
                 raise SpecError(
                     f"{context}.host must reference a defined host in 'hosts'. Got '{host_ref}'."
                 )
-            if not isinstance(template_file_id, str) or not template_file_id.strip():
-                raise SpecError(f"{context}.template_file_id must be a non-empty string.")
+
+            template_file_id = FieldValidators.assert_non_empty_string(
+                container_value["template_file_id"], f"{context}.template_file_id"
+            )
+
             if name in seen_container_names:
                 raise SpecError(f"Duplicate container name '{name}'.")
             seen_container_names.add(name)
 
-            vm_id = self._normalize_vm_id(container_value, context, seen_vm_ids)
+            vm_id = self._normalize_vm_id(
+                container_value, context, seen_vm_ids_per_host[host_ref]
+            )
 
             unprivileged = container_value.get("unprivileged", True)
             if not isinstance(unprivileged, bool):
@@ -142,17 +159,13 @@ class SpecService:
                 f"{context}.disk_size_gb",
             )
 
-            os_type_value = container_value.get("os_type", "ubuntu")
-            if not isinstance(os_type_value, str) or not os_type_value.strip():
-                raise SpecError(f"{context}.os_type must be a non-empty string when provided.")
-            os_type = os_type_value.strip()
+            os_type = FieldValidators.assert_non_empty_string(
+                container_value.get("os_type", "ubuntu"), f"{context}.os_type"
+            )
 
-            hostname_value = container_value.get("hostname", name)
-            if not isinstance(hostname_value, str) or not hostname_value.strip():
-                raise SpecError(
-                    f"{context}.hostname must be a non-empty string when provided."
-                )
-            hostname = hostname_value.strip()
+            hostname = FieldValidators.assert_non_empty_string(
+                container_value.get("hostname", name), f"{context}.hostname"
+            )
 
             normalized_containers.append(
                 ContainerSpec(
@@ -177,7 +190,7 @@ class SpecService:
     def _normalize_vm_id(
         container_value: Dict[str, Any],
         context: str,
-        seen_vm_ids: set[int],
+        seen_vm_ids: Set[int],
     ) -> int | None:
         vm_id_value = container_value.get("vm_id")
         if vm_id_value is None:

@@ -5,7 +5,7 @@ from typing import Optional
 import requests
 
 from container_reconcile.domain.errors import SpecError
-from container_reconcile.infrastructure.config_reader import ProxmoxConnectionConfig
+from container_reconcile.domain.models import ProxmoxConnectionConfig
 
 
 class ProxmoxNextIdClient:
