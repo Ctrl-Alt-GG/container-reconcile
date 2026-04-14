@@ -4,11 +4,11 @@ from typing import Any
 
 from container_reconcile.domain.errors import SpecError
 from container_reconcile.domain.models import (
+    REQUIRED_CONTAINER_FIELDS,
+    REQUIRED_HOST_FIELDS,
     ContainerSpec,
     DeploymentSpec,
     HostSpec,
-    REQUIRED_CONTAINER_FIELDS,
-    REQUIRED_HOST_FIELDS,
 )
 from container_reconcile.domain.validators import FieldValidators
 

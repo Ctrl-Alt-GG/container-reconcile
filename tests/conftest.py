@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import sys
 from types import ModuleType, SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pytest
 
@@ -112,8 +112,8 @@ _install_fallback_pulumi_proxmoxve_module()
 class FakePulumiConfig:
     def __init__(
         self,
-        values: Optional[Dict[str, Any]] = None,
-        bool_values: Optional[Dict[str, bool]] = None,
+        values: dict[str, Any] | None = None,
+        bool_values: dict[str, bool] | None = None,
     ) -> None:
         self._values = values or {}
         self._bool_values = bool_values or {}
@@ -121,15 +121,15 @@ class FakePulumiConfig:
     def get(self, key: str) -> Any:
         return self._values.get(key)
 
-    def get_bool(self, key: str) -> Optional[bool]:
+    def get_bool(self, key: str) -> bool | None:
         return self._bool_values.get(key)
 
 
 @pytest.fixture
 def make_fake_config():
     def _make(
-        values: Optional[Dict[str, Any]] = None,
-        bool_values: Optional[Dict[str, bool]] = None,
+        values: dict[str, Any] | None = None,
+        bool_values: dict[str, bool] | None = None,
     ) -> FakePulumiConfig:
         return FakePulumiConfig(values=values, bool_values=bool_values)
 
@@ -198,7 +198,7 @@ def sample_deployment_spec(
 
 
 @pytest.fixture
-def sample_raw_spec() -> Dict[str, Any]:
+def sample_raw_spec() -> dict[str, Any]:
     return {
         "hosts": {
             "hostA": {

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 REQUIRED_HOST_FIELDS = ("ip", "node_name", "datastore_id", "bridge")
 REQUIRED_CONTAINER_FIELDS = ("name", "host", "template_file_id")
 

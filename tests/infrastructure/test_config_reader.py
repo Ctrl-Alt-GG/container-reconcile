@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import pytest
-
 import container_reconcile.infrastructure.config_reader as config_reader_module
-from container_reconcile.infrastructure.config_reader import ConfigReader
 from container_reconcile.domain.models import HostSpec
+from container_reconcile.infrastructure.config_reader import ConfigReader
 
 
 def _patch_pulumi_config(monkeypatch, app_cfg, provider_cfg) -> None:

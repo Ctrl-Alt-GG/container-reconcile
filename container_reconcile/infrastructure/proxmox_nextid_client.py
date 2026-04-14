@@ -100,7 +100,7 @@ class ProxmoxNextIdClient:
     def close(self) -> None:
         self._session.close()
 
-    def __enter__(self) -> "ProxmoxNextIdClient":
+    def __enter__(self) -> ProxmoxNextIdClient:
         return self
 
     def __exit__(self, *args: object) -> None:
