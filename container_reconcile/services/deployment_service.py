@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Dict, List
-
 import pulumi
 import pulumi_proxmoxve as proxmoxve
 
+from container_reconcile.domain.errors import SpecError
 from container_reconcile.infrastructure.config_reader import ConfigReader
 from container_reconcile.infrastructure.proxmox_nextid_client import ProxmoxNextIdClient
 from container_reconcile.infrastructure.spec_loader import SpecLoader
@@ -39,12 +38,12 @@ class DeploymentService:
             connection = self._config_reader.get_host_connection_config(
                 host_alias, host
             )
-            nextid_client = ProxmoxNextIdClient(connection)
-            allocator = VmIdAllocator(nextid_client)
-            allocator.allocate_for_host(deployment_spec, host_alias)
+            with ProxmoxNextIdClient(connection) as nextid_client:
+                allocator = VmIdAllocator(nextid_client)
+                allocator.allocate_for_host(deployment_spec, host_alias)
 
         # --- Create an explicit Pulumi provider per host ---
-        providers: Dict[str, proxmoxve.Provider] = {}
+        providers: dict[str, proxmoxve.Provider] = {}
         for alias, host in deployment_spec.hosts.items():
             connection = self._config_reader.get_host_connection_config(alias, host)
             providers[alias] = proxmoxve.Provider(
@@ -57,9 +56,9 @@ class DeploymentService:
             )
 
         # --- Deploy container resources ---
-        created_resources: List[proxmoxve.ct.Container] = []
-        vm_ids_by_name: Dict[str, int] = {}
-        host_by_name: Dict[str, str] = {}
+        created_resources: list[proxmoxve.ct.Container] = []
+        vm_ids_by_name: dict[str, int] = {}
+        host_by_name: dict[str, str] = {}
 
         for idx, container in enumerate(deployment_spec.containers):
             host = deployment_spec.hosts[container.host]
@@ -77,7 +76,10 @@ class DeploymentService:
             )
 
             created_resources.append(resource)
-            assert container.vm_id is not None
+            if container.vm_id is None:
+                raise SpecError(
+                    f"Container '{container.name}' has no vm_id after allocation."
+                )
             vm_ids_by_name[container.name] = container.vm_id
             host_by_name[container.name] = container.host
 

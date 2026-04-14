@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import pulumi
 
 from container_reconcile.domain.models import HostSpec, ProxmoxConnectionConfig
@@ -72,7 +70,7 @@ class ConfigReader:
         )
 
     @staticmethod
-    def _first_non_empty(*values: Optional[str]) -> Optional[str]:
+    def _first_non_empty(*values: str | None) -> str | None:
         for value in values:
             if isinstance(value, str) and value.strip():
                 return value

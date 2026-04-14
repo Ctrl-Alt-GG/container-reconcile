@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -21,13 +21,13 @@ class _FakeResponse:
         if self._raise_exc:
             raise self._raise_exc
 
-    def json(self) -> Dict[str, Any]:
+    def json(self) -> dict[str, Any]:
         return {"data": self._data}
 
 
 class _FakeCookies:
     def __init__(self) -> None:
-        self.values: Dict[str, str] = {}
+        self.values: dict[str, str] = {}
 
     def set(self, key: str, value: str) -> None:
         self.values[key] = value
@@ -36,22 +36,23 @@ class _FakeCookies:
 class _FakeSession:
     def __init__(self) -> None:
         self.verify = True
-        self.headers: Dict[str, str] = {}
+        self.headers: dict[str, str] = {}
         self.cookies = _FakeCookies()
         self.post = Mock()
         self.get = Mock()
+        self.close = Mock()
 
 
 def _connection(
     *,
     endpoint: str = "https://pve.example:8006",
     insecure: bool = False,
-    api_token: Optional[str] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    otp: Optional[str] = None,
-    auth_ticket: Optional[str] = None,
-    csrf_prevention_token: Optional[str] = None,
+    api_token: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
+    otp: str | None = None,
+    auth_ticket: str | None = None,
+    csrf_prevention_token: str | None = None,
 ) -> ProxmoxConnectionConfig:
     return ProxmoxConnectionConfig(
         endpoint=endpoint,
@@ -150,4 +151,24 @@ def test_get_next_id_raises_for_non_integer_payload(monkeypatch) -> None:
     client = ProxmoxNextIdClient(_connection(api_token="token"))
     with pytest.raises(SpecError, match="Unexpected next-id payload"):
         client.get_next_id()
+
+
+def test_close_closes_underlying_session(monkeypatch) -> None:
+    session = _FakeSession()
+    monkeypatch.setattr(client_module.requests, "Session", lambda: session)
+
+    client = ProxmoxNextIdClient(_connection(api_token="token"))
+    client.close()
+
+    session.close.assert_called_once()
+
+
+def test_context_manager_closes_session_on_exit(monkeypatch) -> None:
+    session = _FakeSession()
+    monkeypatch.setattr(client_module.requests, "Session", lambda: session)
+
+    with ProxmoxNextIdClient(_connection(api_token="token")):
+        pass
+
+    session.close.assert_called_once()
 

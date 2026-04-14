@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import runpy
+from pathlib import Path
 
-import pytest
 import pulumi
+import pytest
 
 import container_reconcile.infrastructure.config_reader as config_reader_module
 import container_reconcile.infrastructure.spec_loader as spec_loader_module
@@ -12,7 +12,6 @@ import container_reconcile.services.container_args_factory as args_factory_modul
 import container_reconcile.services.deployment_service as deployment_module
 import container_reconcile.services.spec_service as spec_service_module
 from container_reconcile.domain.errors import SpecError
-
 
 MAIN_PATH = Path(__file__).resolve().parents[1] / "__main__.py"
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
@@ -11,7 +11,7 @@ from container_reconcile.domain.errors import SpecError
 class SpecLoader:
     """Loads raw YAML deployment specification from disk."""
 
-    def load(self, path: str) -> Dict[str, Any]:
+    def load(self, path: str) -> dict[str, Any]:
         spec_path = Path(path)
         if not spec_path.exists():
             raise SpecError(
