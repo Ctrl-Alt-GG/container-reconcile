@@ -179,6 +179,12 @@ def test_run_allocates_vm_ids_per_host(monkeypatch) -> None:
         def __init__(self, cfg):
             pass
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
     class FakeAllocator:
         def __init__(self, client):
             pass

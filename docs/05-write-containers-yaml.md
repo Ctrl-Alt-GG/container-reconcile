@@ -44,8 +44,8 @@ Optional fields and defaults:
 - `hostname`: defaults to `name`
 - `ip`: defaults to `dhcp` (or CIDR like `10.0.0.101/24`)
 - `gateway`: optional valid IP; **must not** be set when `ip: dhcp`
-- `cores`: defaults to `1`
-- `memory_mb`: defaults to `512`
+- `cores`: defaults to `2`
+- `memory_mb`: defaults to `2048`
 - `disk_size_gb`: defaults to `8`
 - `os_type`: defaults to `ubuntu`
 

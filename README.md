@@ -121,8 +121,8 @@ The program is organized into OOP-focused layers:
 - `hostname` (defaults to `name`)
 - `ip` (defaults to `dhcp`; accepts CIDR like `10.0.0.101/24` or `dhcp`)
 - `gateway`
-- `cores` (defaults to `1`)
-- `memory_mb` (defaults to `512`)
+- `cores` (defaults to `2`)
+- `memory_mb` (defaults to `2048`)
 - `disk_size_gb` (defaults to `8`)
 - `os_type` (defaults to `ubuntu`)
 

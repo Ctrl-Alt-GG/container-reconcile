@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set
+from typing import Any
 
 from container_reconcile.domain.errors import SpecError
 from container_reconcile.domain.models import (
@@ -18,7 +18,7 @@ _DEFAULT_PROXMOX_PORT = 8006
 class SpecService:
     """Validates and normalizes the raw YAML spec into typed domain models."""
 
-    def to_deployment_spec(self, raw_spec: Dict[str, Any]) -> DeploymentSpec:
+    def to_deployment_spec(self, raw_spec: dict[str, Any]) -> DeploymentSpec:
         hosts_obj = raw_spec.get("hosts")
         containers_obj = raw_spec.get("containers")
 
@@ -27,15 +27,15 @@ class SpecService:
         if not isinstance(containers_obj, list) or not containers_obj:
             raise SpecError("Top-level key 'containers' must be a non-empty list.")
 
-        hosts: Dict[str, HostSpec] = self._normalize_hosts(hosts_obj)
-        containers: List[ContainerSpec] = self._normalize_containers(
+        hosts: dict[str, HostSpec] = self._normalize_hosts(hosts_obj)
+        containers: list[ContainerSpec] = self._normalize_containers(
             containers_obj=containers_obj,
             hosts=hosts,
         )
         return DeploymentSpec(hosts=hosts, containers=containers)
 
-    def _normalize_hosts(self, hosts_obj: Dict[str, Any]) -> Dict[str, HostSpec]:
-        normalized_hosts: Dict[str, HostSpec] = {}
+    def _normalize_hosts(self, hosts_obj: dict[str, Any]) -> dict[str, HostSpec]:
+        normalized_hosts: dict[str, HostSpec] = {}
         for host_name, host_value in hosts_obj.items():
             if not isinstance(host_name, str) or not host_name.strip():
                 raise SpecError("Every host key in 'hosts' must be a non-empty string.")
@@ -90,12 +90,12 @@ class SpecService:
 
     def _normalize_containers(
         self,
-        containers_obj: List[Any],
-        hosts: Dict[str, HostSpec],
-    ) -> List[ContainerSpec]:
-        seen_container_names: Set[str] = set()
-        seen_vm_ids_per_host: Dict[str, Set[int]] = {alias: set() for alias in hosts}
-        normalized_containers: List[ContainerSpec] = []
+        containers_obj: list[Any],
+        hosts: dict[str, HostSpec],
+    ) -> list[ContainerSpec]:
+        seen_container_names: set[str] = set()
+        seen_vm_ids_per_host: dict[str, set[int]] = {alias: set() for alias in hosts}
+        normalized_containers: list[ContainerSpec] = []
 
         for index, container_value in enumerate(containers_obj):
             context = f"containers[{index}]"
@@ -188,9 +188,9 @@ class SpecService:
 
     @staticmethod
     def _normalize_vm_id(
-        container_value: Dict[str, Any],
+        container_value: dict[str, Any],
         context: str,
-        seen_vm_ids: Set[int],
+        seen_vm_ids: set[int],
     ) -> int | None:
         vm_id_value = container_value.get("vm_id")
         if vm_id_value is None:

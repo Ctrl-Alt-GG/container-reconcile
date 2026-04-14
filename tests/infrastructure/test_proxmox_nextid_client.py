@@ -40,6 +40,7 @@ class _FakeSession:
         self.cookies = _FakeCookies()
         self.post = Mock()
         self.get = Mock()
+        self.close = Mock()
 
 
 def _connection(
@@ -150,4 +151,24 @@ def test_get_next_id_raises_for_non_integer_payload(monkeypatch) -> None:
     client = ProxmoxNextIdClient(_connection(api_token="token"))
     with pytest.raises(SpecError, match="Unexpected next-id payload"):
         client.get_next_id()
+
+
+def test_close_closes_underlying_session(monkeypatch) -> None:
+    session = _FakeSession()
+    monkeypatch.setattr(client_module.requests, "Session", lambda: session)
+
+    client = ProxmoxNextIdClient(_connection(api_token="token"))
+    client.close()
+
+    session.close.assert_called_once()
+
+
+def test_context_manager_closes_session_on_exit(monkeypatch) -> None:
+    session = _FakeSession()
+    monkeypatch.setattr(client_module.requests, "Session", lambda: session)
+
+    with ProxmoxNextIdClient(_connection(api_token="token")):
+        pass
+
+    session.close.assert_called_once()
 

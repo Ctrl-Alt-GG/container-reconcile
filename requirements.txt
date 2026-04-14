@@ -1,4 +1,4 @@
-pulumi
-pulumi-proxmoxve
-PyYAML
-requests
+pulumi>=3.0.0
+pulumi-proxmoxve>=0.74.0
+PyYAML>=6.0
+requests>=2.28.0

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import requests
 
 from container_reconcile.domain.errors import SpecError
@@ -55,7 +53,7 @@ class ProxmoxNextIdClient:
             return stripped
         return f"{stripped}/api2/json"
 
-    def _login(self, username: str, password: str, otp: Optional[str]) -> None:
+    def _login(self, username: str, password: str, otp: str | None) -> None:
         login_url = f"{self._api_base}/access/ticket"
         payload = {"username": username, "password": password}
         if otp:
@@ -98,4 +96,13 @@ class ProxmoxNextIdClient:
             return int(data)
         except (TypeError, ValueError) as exc:
             raise SpecError(f"Unexpected next-id payload '{data}'.") from exc
+
+    def close(self) -> None:
+        self._session.close()
+
+    def __enter__(self) -> "ProxmoxNextIdClient":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
 

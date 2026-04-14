@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict
+from typing import Any
 
 import pulumi_proxmoxve as proxmoxve
 
@@ -11,7 +11,7 @@ from container_reconcile.domain.models import ContainerSpec, HostSpec
 class ContainerArgsFactory:
     """Builds Pulumi proxmoxve container args from domain specs."""
 
-    def build(self, container: ContainerSpec, host: HostSpec) -> Dict[str, Any]:
+    def build(self, container: ContainerSpec, host: HostSpec) -> dict[str, Any]:
         ipv4 = proxmoxve.ct.ContainerInitializationIpConfigIpv4Args(
             address=container.ip,
             gateway=container.gateway,

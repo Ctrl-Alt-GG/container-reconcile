@@ -48,12 +48,9 @@ def _install_fallback_pulumi_module() -> None:
 
 
 def _install_fallback_pulumi_proxmoxve_module() -> None:
-    try:
-        importlib.import_module("pulumi_proxmoxve")
-        return
-    except ModuleNotFoundError:
-        pass
-
+    # Always install the stub regardless of what is installed, to guarantee
+    # that tests are isolated from the real pulumi_proxmoxve API and its
+    # breaking changes across major versions.
     module = ModuleType("pulumi_proxmoxve")
 
     class _FakeArgs:
