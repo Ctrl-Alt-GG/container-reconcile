@@ -34,7 +34,6 @@ class TestNodeSelection(unittest.TestCase):
             {"name": "pve-01", "memory": {"free_bytes": 1000000}}
         ]
         result = select_best_node_by_resources(nodes)
-        self.assertIsNotNone(result)
         assert result is not None
         self.assertEqual(result["name"], "pve-01")
 
@@ -47,7 +46,6 @@ class TestNodeSelection(unittest.TestCase):
         ]
         result = select_best_node_by_resources(nodes)
         # Should select pve-02 (highest free memory)
-        self.assertIsNotNone(result)
         assert result is not None
         self.assertEqual(result["name"], "pve-02")
 
@@ -60,7 +58,6 @@ class TestNodeSelection(unittest.TestCase):
         ]
         result = select_best_node_by_resources(nodes)
         # Should select pve-01 (lexically first when memory equal)
-        self.assertIsNotNone(result)
         assert result is not None
         self.assertEqual(result["name"], "pve-01")
 
@@ -72,8 +69,6 @@ class TestNodeSelection(unittest.TestCase):
         ]
         result1 = select_best_node_by_resources(nodes)
         result2 = select_best_node_by_resources(nodes)
-        self.assertIsNotNone(result1)
-        self.assertIsNotNone(result2)
         assert result1 is not None
         assert result2 is not None
         self.assertEqual(result1["name"], result2["name"])
