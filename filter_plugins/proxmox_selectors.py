@@ -10,15 +10,13 @@ from typing import Any, Dict, List, Optional
 
 def select_best_node_by_resources(
     nodes: List[Dict[str, Any]],
-    prefer_attr: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Select the best node from a list based on available resources.
-    Sorting order: most free memory, then most free disk, then lexical name
+    Sorting order: most free memory, then lexical name
 
     Args:
         nodes: List of node dictionaries with memory and storage info
-        prefer_attr: Optional preferred attribute value to prioritize
 
     Returns:
         The selected node dictionary, or None if list is empty
@@ -29,18 +27,14 @@ def select_best_node_by_resources(
     # Sort by multiple criteria: memory (desc), then name (asc)
     sorted_nodes = sorted(
         nodes,
-        key=lambda x: (
-            -x.get('memory', {}).get('free_bytes', 0),
-            x.get('name', '')
-        )
+        key=lambda x: (-x.get("memory", {}).get("free_bytes", 0), x.get("name", "")),
     )
 
     return sorted_nodes[0] if sorted_nodes else None
 
 
 def find_first_available_ip(
-    excluded_ips: List[str],
-    subnet_ips: List[str]
+    excluded_ips: List[str], subnet_ips: List[str]
 ) -> Optional[str]:
     """
     Find the first available IP address from a subnet.
@@ -56,16 +50,14 @@ def find_first_available_ip(
     available = [ip for ip in subnet_ips if ip not in excluded_set]
 
     if available:
-        available.sort()
+        available.sort(key=ipaddress.ip_address)
         return available[0]
 
     return None
 
 
 def find_first_available_vmid(
-    used_vmids: List[int],
-    min_vmid: int,
-    max_vmid: int
+    used_vmids: List[int], min_vmid: int, max_vmid: int
 ) -> Optional[int]:
     """
     Find the first available VMID in the managed range.
@@ -112,8 +104,8 @@ class FilterModule:
             Dictionary mapping filter names to filter functions
         """
         return {
-            'select_best_node_by_resources': select_best_node_by_resources,
-            'find_first_available_ip': find_first_available_ip,
-            'find_first_available_vmid': find_first_available_vmid,
-            'cidr_host_addresses': cidr_host_addresses,
+            "select_best_node_by_resources": select_best_node_by_resources,
+            "find_first_available_ip": find_first_available_ip,
+            "find_first_available_vmid": find_first_available_vmid,
+            "cidr_host_addresses": cidr_host_addresses,
         }

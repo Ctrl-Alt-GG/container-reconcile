@@ -3,6 +3,10 @@
   set_fact:
     desired_container_name: "{{ container.hostname | default(container.name) }}"
 
+- name: Resolve container network overrides
+  set_fact:
+    container_network: "{{ container.network | default({}) }}"
+
 - name: Resolve existing container by name
   set_fact:
     existing_container: "{{ (proxmox_containers | selectattr('name', 'equalto', desired_container_name) | list | first) | default(None) }}"
@@ -12,7 +16,7 @@
     requested_memory_mb: "{{ container.memory_mb | default(lxc_default_memory) | int }}"
     requested_cpu: "{{ container.cpu | default(lxc_default_cpu) | int }}"
     requested_disk_gb: "{{ container.disk_gb | default(lxc_default_disk) | int }}"
-    target_subnet: "{{ container.network.subnet | default(ip_allocation.managed_subnets[0].cidr) }}"
+    target_subnet: "{{ container_network.subnet | default(ip_allocation.managed_subnets[0].cidr) }}"
 
 - name: Resolve subnet configuration
   set_fact:
@@ -99,7 +103,7 @@
 
 - name: Resolve explicit desired IP
   set_fact:
-    desired_ip_address: "{{ container.network.ip_address | default(None) }}"
+    desired_ip_address: "{{ container_network.ip_address | default(None) }}"
 
 - name: Build excluded IP list for subnet allocation
   set_fact:
@@ -166,7 +170,7 @@
     cores: "{{ requested_cpu }}"
     disk: "{{ requested_disk_gb }}"
     netif:
-      net0: "name=eth0,bridge={{ selected_bridge }},ip={{ selected_ip_address }}/{{ selected_prefix_length }},gw={{ container.network.gateway | default(subnet_config.gateway) }}"
+      net0: "name=eth0,bridge={{ selected_bridge }},ip={{ selected_ip_address }}/{{ selected_prefix_length }},gw={{ container_network.gateway | default(subnet_config.gateway) }}"
     unprivileged: true
     state: present
   register: create_result
