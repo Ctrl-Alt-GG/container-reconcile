@@ -1,0 +1,24 @@
+---
+- name: Validate inputs for reconciliation
+  assert:
+    that:
+      - desired_containers is defined
+      - proxmox_nodes_discovered is defined
+      - proxmox_storage_usage is defined
+      - proxmox_containers is defined
+      - proxmox_all_vmids is defined
+      - proxmox_used_ips is defined
+      - proxmox_node_auth_map is defined
+    fail_msg: "proxmox_discovery facts and desired_containers are required before reconciliation"
+
+- name: Initialize reconciliation state
+  set_fact:
+    reconciliations: []
+    planned_used_vmids: "{{ proxmox_all_vmids | unique | map('int') | list }}"
+    planned_used_ips: "{{ proxmox_used_ips | unique | list }}"
+
+- name: Reconcile each desired container
+  include_tasks: reconcile_one.yml
+  loop: "{{ desired_containers }}"
+  loop_control:
+    loop_var: container

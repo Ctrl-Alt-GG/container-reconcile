@@ -1,0 +1,230 @@
+---
+- name: Resolve desired container identity
+  set_fact:
+    desired_container_name: "{{ container.hostname | default(container.name) }}"
+
+- name: Resolve container network overrides
+  set_fact:
+    container_network: "{{ container.network | default({}) }}"
+
+- name: Resolve existing container by name
+  set_fact:
+    existing_container: "{{ (proxmox_containers | selectattr('name', 'equalto', desired_container_name) | list | first) | default(None) }}"
+
+- name: Resolve requested resources
+  set_fact:
+    requested_memory_mb: "{{ container.memory_mb | default(lxc_default_memory) | int }}"
+    requested_cpu: "{{ container.cpu | default(lxc_default_cpu) | int }}"
+    requested_disk_gb: "{{ container.disk_gb | default(lxc_default_disk) | int }}"
+    target_subnet: "{{ container_network.subnet | default(ip_allocation.managed_subnets[0].cidr) }}"
+
+- name: Resolve subnet configuration
+  set_fact:
+    subnet_config: "{{ ip_allocation.managed_subnets | selectattr('cidr', 'equalto', target_subnet) | list | first }}"
+
+- name: Validate subnet configuration exists
+  assert:
+    that:
+      - subnet_config is defined
+    fail_msg: "Managed subnet {{ target_subnet }} is not configured"
+
+- name: Build eligible node list
+  set_fact:
+    eligible_nodes: "{{ proxmox_nodes_discovered | dict2items | selectattr('value.status', 'equalto', 'online') | map(attribute='value') | list }}"
+
+- name: Apply preferred node filter when requested
+  set_fact:
+    eligible_nodes: "{{ eligible_nodes | selectattr('name', 'equalto', container.preferred_node) | list }}"
+  when:
+    - existing_container is none
+    - container.preferred_node is defined
+
+- name: Select target node
+  set_fact:
+    selected_node_name: "{{ existing_container.node if existing_container else (((eligible_nodes | select_best_node_by_resources) | default({})).name | default(None)) }}"
+
+- name: Validate selected node
+  assert:
+    that:
+      - selected_node_name is not none
+    fail_msg: "No eligible Proxmox node found for {{ desired_container_name }}"
+
+- name: Resolve selected node auth
+  set_fact:
+    selected_node_auth: "{{ proxmox_node_auth_map[selected_node_name] }}"
+
+- name: Resolve network settings
+  set_fact:
+    selected_bridge: "{{ selected_node_auth.bridge | default('vmbr0') }}"
+    selected_prefix_length: "{{ (target_subnet.split('/') | last) | int }}"
+
+- name: Resolve preferred storage pools
+  set_fact:
+    preferred_pools: "{{ ([container.preferred_storage] if container.preferred_storage is defined else []) + (selected_node_auth.storage_pools | default(['local'])) }}"
+  when: existing_container is none
+
+- name: Initialize available storage pool list
+  set_fact:
+    available_pools: []
+  when: existing_container is none
+
+- name: Evaluate storage pool capacity
+  set_fact:
+    available_pools: "{{ available_pools + ([pool_name] if (
+      proxmox_storage_usage[selected_node_name].details |
+      selectattr('storage', 'equalto', pool_name) |
+      map(attribute='avail_bytes') | first | default(0)
+    ) > (requested_disk_gb | int * 1024 * 1024 * 1024) else []) }}"
+  loop: "{{ preferred_pools | unique }}"
+  loop_control:
+    loop_var: pool_name
+  when: existing_container is none
+
+- name: Validate storage pool availability
+  assert:
+    that:
+      - available_pools | length > 0
+    fail_msg: "No storage pool with enough capacity on node {{ selected_node_name }} for {{ desired_container_name }}"
+  when: existing_container is none
+
+- name: Select storage pool
+  set_fact:
+    selected_storage_pool: "{{ (existing_container.rootfs | regex_replace('^([^:]+):.*$', '\\1')) if existing_container and existing_container.rootfs is defined else ((available_pools | first) if existing_container is none else (selected_node_auth.storage_pools | first)) }}"
+
+- name: Resolve VMID for container
+  set_fact:
+    selected_vmid: "{{ (existing_container.vmid | int) if existing_container else (planned_used_vmids | find_first_available_vmid(vmid_management.min_vmid | int, vmid_management.max_vmid | int)) }}"
+
+- name: Validate VMID resolution
+  assert:
+    that:
+      - selected_vmid is not none
+    fail_msg: "No available VMID in range {{ vmid_management.min_vmid }}-{{ vmid_management.max_vmid }}"
+
+- name: Resolve explicit desired IP
+  set_fact:
+    desired_ip_address: "{{ container_network.ip_address | default(None) }}"
+
+- name: Build excluded IP list for subnet allocation
+  set_fact:
+    excluded_ips: "{{ ((subnet_config.reserved_ips | default([])) + [subnet_config.gateway] + planned_used_ips) | unique }}"
+  when: existing_container is none
+
+- name: Build available subnet host list
+  set_fact:
+    all_host_addresses: "{{ target_subnet | cidr_host_addresses }}"
+  when: existing_container is none and desired_ip_address is none
+
+- name: Resolve allocated IP address
+  set_fact:
+    selected_ip_address: >-
+      {{
+        (existing_container.net0 | regex_search('ip=([0-9.]+)') | regex_replace('ip=', ''))
+        if existing_container and (existing_container.net0 is defined and (existing_container.net0 | regex_search('ip=([0-9.]+)')))
+        else (
+          desired_ip_address if desired_ip_address is not none else
+          (excluded_ips | find_first_available_ip(all_host_addresses))
+        )
+      }}
+
+- name: Validate selected IP address
+  assert:
+    that:
+      - selected_ip_address is not none
+      - selected_ip_address | length > 0
+    fail_msg: "Unable to allocate IP address for {{ desired_container_name }}"
+
+- name: Validate explicit desired IP is allocatable
+  assert:
+    that:
+      - selected_ip_address not in excluded_ips
+    fail_msg: "Requested IP {{ selected_ip_address }} is reserved, already used, or equals the subnet gateway"
+  when:
+    - existing_container is none
+    - desired_ip_address is not none
+
+- name: Resolve container action
+  set_fact:
+    container_action: >-
+      {{
+        'create' if existing_container is none else
+        ('update' if (
+          (existing_container.memory | default(0) | int) != requested_memory_mb or
+          (existing_container.cpulimit | default(existing_container.cores | default(0)) | int) != requested_cpu
+        ) else 'skip')
+      }}
+
+- name: Create container when missing
+  community.proxmox.proxmox:
+    api_host: "{{ selected_node_auth.api_host }}"
+    api_user: "{{ selected_node_auth.api_user }}"
+    api_token_id: "{{ selected_node_auth.api_token_id }}"
+    api_token_secret: "{{ selected_node_auth.api_token_secret }}"
+    validate_certs: "{{ selected_node_auth.validate_certs }}"
+    vmid: "{{ selected_vmid }}"
+    node: "{{ selected_node_name }}"
+    hostname: "{{ desired_container_name }}"
+    ostemplate: "{{ container.template | default(lxc_default_template) }}"
+    storage: "{{ selected_storage_pool }}"
+    memory: "{{ requested_memory_mb }}"
+    cores: "{{ requested_cpu }}"
+    disk: "{{ requested_disk_gb }}"
+    netif:
+      net0: "name=eth0,bridge={{ selected_bridge }},ip={{ selected_ip_address }}/{{ selected_prefix_length }},gw={{ container_network.gateway | default(subnet_config.gateway) }}"
+    unprivileged: true
+    state: present
+  register: create_result
+  when: container_action == 'create'
+
+- name: Start container after create
+  community.proxmox.proxmox:
+    api_host: "{{ selected_node_auth.api_host }}"
+    api_user: "{{ selected_node_auth.api_user }}"
+    api_token_id: "{{ selected_node_auth.api_token_id }}"
+    api_token_secret: "{{ selected_node_auth.api_token_secret }}"
+    validate_certs: "{{ selected_node_auth.validate_certs }}"
+    vmid: "{{ selected_vmid }}"
+    node: "{{ selected_node_name }}"
+    state: started
+  when: container_action == 'create'
+
+- name: Update container when drift detected
+  community.proxmox.proxmox:
+    api_host: "{{ selected_node_auth.api_host }}"
+    api_user: "{{ selected_node_auth.api_user }}"
+    api_token_id: "{{ selected_node_auth.api_token_id }}"
+    api_token_secret: "{{ selected_node_auth.api_token_secret }}"
+    validate_certs: "{{ selected_node_auth.validate_certs }}"
+    vmid: "{{ selected_vmid }}"
+    node: "{{ selected_node_name }}"
+    memory: "{{ requested_memory_mb }}"
+    cores: "{{ requested_cpu }}"
+    update: true
+  register: update_result
+  when: container_action == 'update'
+
+- name: Reserve allocated VMID for subsequent iterations
+  set_fact:
+    planned_used_vmids: "{{ (planned_used_vmids + [selected_vmid | int]) | unique | list }}"
+  when: container_action == 'create'
+
+- name: Reserve allocated IP for subsequent iterations
+  set_fact:
+    planned_used_ips: "{{ (planned_used_ips + [selected_ip_address]) | unique | list }}"
+  when: container_action == 'create'
+
+- name: Collect reconciliation result
+  set_fact:
+    reconciliations: "{{ reconciliations + [{
+      'container_name': desired_container_name,
+      'action': container_action,
+      'changed': (
+        (container_action == 'create' and (create_result is defined and (create_result.changed | default(false)))) or
+        (container_action == 'update' and (update_result is defined and (update_result.changed | default(false))))
+      ),
+      'vmid': selected_vmid,
+      'ip_address': selected_ip_address,
+      'node': selected_node_name,
+      'storage_pool': selected_storage_pool,
+      'errors': []
+    }] }}"

@@ -1,0 +1,138 @@
+---
+- name: Validate Proxmox node configuration
+  assert:
+    that:
+      - proxmox_nodes is defined
+      - proxmox_nodes | length > 0
+    fail_msg: "proxmox_nodes must define at least one node"
+
+- name: Initialize discovery facts
+  set_fact:
+    proxmox_nodes_effective: []
+    proxmox_node_auth_map: {}
+    proxmox_nodes_discovered: {}
+    proxmox_storage_usage: {}
+    proxmox_containers: []
+    proxmox_all_vmids: []
+    proxmox_used_ips: []
+
+- name: Normalize per-node API authentication
+  set_fact:
+    proxmox_nodes_effective: "{{ proxmox_nodes_effective + [item | combine({
+      'api_host': item.api_host | default(item.name | default('')),
+      'api_user': item.api_user | default(''),
+      'api_token_id': item.api_token_id | default(''),
+      'api_token_secret': item.api_token_secret | default(''),
+      'validate_certs': item.validate_certs | default(true)
+    })] }}"
+  loop: "{{ proxmox_nodes }}"
+
+- name: Validate per-node API fields
+  assert:
+    that:
+      - item.api_host | length > 0
+      - item.api_user | length > 0
+      - item.api_token_id | length > 0
+      - item.api_token_secret | length > 0
+    fail_msg: "Node {{ item.name }} is missing API authentication fields"
+  loop: "{{ proxmox_nodes_effective }}"
+
+- name: Query node facts from each API endpoint
+  community.proxmox.proxmox_node_info:
+    api_host: "{{ item.api_host }}"
+    api_user: "{{ item.api_user }}"
+    api_token_id: "{{ item.api_token_id }}"
+    api_token_secret: "{{ item.api_token_secret }}"
+    validate_certs: "{{ item.validate_certs }}"
+  register: node_queries
+  loop: "{{ proxmox_nodes_effective }}"
+  changed_when: false
+
+- name: Build discovered node facts
+  vars:
+    node_info: "{{ (item.proxmox_nodes | default([]) | selectattr('node', 'equalto', item.item.name) | list | first) | default((item.proxmox_nodes | default([]) | first), true) }}"
+  set_fact:
+    proxmox_node_auth_map: "{{ proxmox_node_auth_map | combine({
+      item.item.name: {
+        'name': item.item.name,
+        'api_host': item.item.api_host,
+        'api_user': item.item.api_user,
+        'api_token_id': item.item.api_token_id,
+        'api_token_secret': item.item.api_token_secret,
+        'validate_certs': item.item.validate_certs,
+        'bridge': item.item.bridge | default('vmbr0'),
+        'storage_pools': item.item.storage_pools | default(['local'])
+      }
+    }) }}"
+    proxmox_nodes_discovered: "{{ proxmox_nodes_discovered | combine({
+      item.item.name: {
+        'name': item.item.name,
+        'status': node_info.status | default('unknown'),
+        'uptime': node_info.uptime | default(0),
+        'memory': {
+          'total_bytes': node_info.maxmem | default(0),
+          'used_bytes': node_info.mem | default(0),
+          'free_bytes': (node_info.maxmem | default(0)) - (node_info.mem | default(0))
+        },
+        'cpu': {
+          'cores': node_info.maxcpu | default(0),
+          'usage': node_info.cpu | default(0)
+        }
+      }
+    }) }}"
+  loop: "{{ node_queries.results }}"
+
+- name: Query storage facts for each node
+  community.proxmox.proxmox_storage_info:
+    api_host: "{{ item.api_host }}"
+    api_user: "{{ item.api_user }}"
+    api_token_id: "{{ item.api_token_id }}"
+    api_token_secret: "{{ item.api_token_secret }}"
+    validate_certs: "{{ item.validate_certs }}"
+    node: "{{ item.name }}"
+  register: storage_queries
+  loop: "{{ proxmox_nodes_effective }}"
+  changed_when: false
+
+- name: Build storage usage facts
+  set_fact:
+    proxmox_storage_usage: "{{ proxmox_storage_usage | combine({
+      item.item.name: {
+        'storage': item.proxmox_storages | default([]) | map(attribute='storage') | list,
+        'details': item.proxmox_storages | default([])
+      }
+    }) }}"
+  loop: "{{ storage_queries.results }}"
+
+- name: Query LXC facts for each node
+  community.proxmox.proxmox_vm_info:
+    api_host: "{{ item.api_host }}"
+    api_user: "{{ item.api_user }}"
+    api_token_id: "{{ item.api_token_id }}"
+    api_token_secret: "{{ item.api_token_secret }}"
+    validate_certs: "{{ item.validate_certs }}"
+    node: "{{ item.name }}"
+    type: lxc
+    config: current
+  register: lxc_queries
+  loop: "{{ proxmox_nodes_effective }}"
+  changed_when: false
+
+- name: Build container and VMID facts
+  set_fact:
+    proxmox_containers: "{{ proxmox_containers + (item.proxmox_vms | default([])) }}"
+    proxmox_all_vmids: "{{ proxmox_all_vmids + (item.proxmox_vms | default([]) | map(attribute='vmid') | map('int') | list) }}"
+  loop: "{{ lxc_queries.results }}"
+
+- name: Extract used IP addresses
+  set_fact:
+    proxmox_used_ips: "{{ proxmox_used_ips + ([
+      item.net0 | regex_search('ip=([0-9.]+)') | regex_replace('ip=', '')
+    ] if 'net0' in item and item.net0 | regex_search('ip=([0-9.]+)') else []) }}"
+  loop: "{{ proxmox_containers }}"
+
+- name: Ensure at least one node was discovered
+  assert:
+    that:
+      - proxmox_nodes_discovered | length > 0
+    fail_msg: "No Proxmox nodes were discovered"

@@ -1,0 +1,49 @@
+---
+- name: Validate discovery facts for reporting
+  assert:
+    that:
+      - proxmox_containers is defined
+      - proxmox_nodes_discovered is defined
+      - proxmox_storage_usage is defined
+    fail_msg: "proxmox_discovery facts are required before running proxmox_report"
+
+- name: Initialize report container list
+  set_fact:
+    report_containers: []
+
+- name: Build report containers from discovery facts
+  set_fact:
+    report_containers: "{{ report_containers + [{
+      'vmid': item.vmid | int,
+      'name': item.name | default(''),
+      'node': item.node | default(''),
+      'status': item.status | default('unknown'),
+      'memory_mb': item.memory | default(0) | int,
+      'cpu_cores': item.cores | default(item.cpulimit | default(0)) | int,
+      'ip_address': (item.net0 | regex_search('ip=([0-9.]+)') | regex_replace('ip=', '')) if 'net0' in item and item.net0 | regex_search('ip=([0-9.]+)') else 'N/A'
+    }] }}"
+  loop: "{{ proxmox_containers }}"
+
+- name: Sort report containers
+  set_fact:
+    report_containers: "{{ report_containers | sort(attribute='vmid') | sort(attribute='node') }}"
+
+- name: Ensure report output directory exists
+  file:
+    path: "{{ reporting.output_dir | default('/tmp/proxmox-reports') }}"
+    state: directory
+    mode: '0755'
+
+- name: Set report path
+  set_fact:
+    report_path: "{{ reporting.output_dir | default('/tmp/proxmox-reports') }}/{{ reporting.report_filename | default('lxc_inventory.md') }}"
+
+- name: Render report markdown
+  set_fact:
+    rendered_report: "{{ lookup('template', 'lxc_report.md.j2') }}"
+
+- name: Write report markdown file
+  copy:
+    content: "{{ rendered_report }}"
+    dest: "{{ report_path }}"
+    mode: '0644'

@@ -1,0 +1,44 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  truthy:
+    level: warning
+  comments:
+    min-spaces-from-content: 2
+  comments-indentation: {}
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+  colons:
+    max-spaces-before: 0
+    max-spaces-after: 1
+  commas:
+    max-spaces-before: 0
+    max-spaces-after: 1
+  document-end: disable
+  document-start:
+    present: true
+    level: warning
+  empty-lines:
+    max: 2
+  empty-values: disable
+  hyphens:
+    max-spaces-after: 1
+  key-duplicates: {}
+  key-ordering: disable
+  new-line-at-end-of-file: {}
+  new-lines:
+    type: unix
+  octal-values: disable
+  quoted-strings: disable
+  trailing-spaces: {}

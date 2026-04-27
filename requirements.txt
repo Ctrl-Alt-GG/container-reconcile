@@ -1,4 +1,8 @@
-pulumi>=3.0.0
-pulumi-proxmoxve>=0.74.0
-PyYAML>=6.0
-requests>=2.28.0
+ansible>=2.9
+requests>=2.25.0
+netaddr>=0.8.0
+jinja2>=2.11.0
+pytest
+black
+flake8
+mypy
