@@ -1,0 +1,14 @@
+---
+# Ansible Collections required by this project
+# Install with: ansible-galaxy collection install -r requirements.yaml
+
+collections:
+  # Provides all Proxmox modules used by this project:
+  #   community.proxmox.proxmox              - manage LXC containers
+  #   community.proxmox.proxmox_node_info    - discover node state
+  #   community.proxmox.proxmox_storage_info - discover storage state
+  #   community.proxmox.proxmox_vm_info      - query LXC container state/config
+  - name: community.proxmox
+
+  - name: ansible.posix
+    version: ">=1.3.0"

@@ -1,0 +1,123 @@
+---
+# ============================================================================
+# Proxmox LXC Reconciliation Configuration
+# ============================================================================
+
+# ============================================================================
+# Proxmox Nodes Configuration
+# ============================================================================
+# Nodes are sorted by name; when multiple nodes can host a container,
+# selection prefers most free RAM, then lexical node name.
+# Authentication is per node because each node API can be fully independent.
+
+proxmox_nodes:
+  - name: carter
+    api_host: "carter.mgmt.ctrl-alt-gg.intra.tormakris.dev"
+    api_user: "root@pam"
+    api_token_id: "{{ lookup('env', 'CARTER_TOKEN_ID', default=lookup('env', 'PROXMOX_TOKEN_ID', default='ansible')) }}"
+    api_token_secret: "{{ lookup('env', 'CARTER_TOKEN_SECRET', default=lookup('env', 'PROXMOX_TOKEN_SECRET', default='')) }}"
+    validate_certs: true
+    bridge: vmbr0
+    # Preferred storage pools in order (playbook selects first with sufficient space)
+    storage_pools:
+      - storage-0
+      - storage-1
+  - name: weir
+    api_host: "weir.mgmt.ctrl-alt-gg.intra.tormakris.dev"
+    api_user: "root@pam"
+    api_token_id: "{{ lookup('env', 'WEIR_TOKEN_ID', default=lookup('env', 'PROXMOX_TOKEN_ID', default='ansible')) }}"
+    api_token_secret: "{{ lookup('env', 'WEIR_TOKEN_SECRET', default=lookup('env', 'PROXMOX_TOKEN_SECRET', default='')) }}"
+    validate_certs: false
+    bridge: vmbr0
+    storage_pools:
+      - storage-0
+
+# ============================================================================
+# Storage Pool Configuration
+# ============================================================================
+# Tracks storage pools and enforces capacity checks to prevent overallocation
+
+storage_pools:
+  storage-0:
+    reserved_percent: 5
+  storage-1:
+    reserved_percent: 5
+
+# ============================================================================
+# IP Allocation Configuration
+# ============================================================================
+
+ip_allocation:
+  # Managed subnets for automatic IP allocation
+  # IP addresses will be allocated from the first available address
+  # (after excluding reserved and live-used IPs).
+  # Network and broadcast addresses are not considered allocatable hosts.
+  managed_subnets:
+    - cidr: "192.168.130.0/24"
+      gateway: "192.168.130.254"
+      description: "Container subnet"
+      # IPs that will never be allocated to containers.
+      # The configured gateway is always excluded automatically.
+      reserved_ips:
+        - "192.168.130.1"
+        - "192.168.130.53"
+
+# ============================================================================
+# LXC Container Management
+# ============================================================================
+
+# Container template to use when creating new LXCs
+lxc_default_template: "local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
+
+# Default CPU quota (shares, not enforced absolute limit)
+lxc_default_cpu: 2
+
+# Default memory (in MB)
+lxc_default_memory: 512
+
+# Default disk size (in GB)
+lxc_default_disk: 10
+
+# VMID management
+vmid_management:
+  # Managed range for VMID allocation (prevents collision with manual VMs)
+  # Select VMIDs from this range
+  min_vmid: 100
+  max_vmid: 999
+
+  # Offset to start searching for available VMID within range
+  # (helps distribute new VMs across the range)
+  search_start_offset: 0
+
+# ============================================================================
+# Reporting Configuration
+# ============================================================================
+
+reporting:
+  # Output directory for generated reports
+  output_dir: "/tmp/proxmox-reports"
+
+  # Report filename
+  report_filename: "lxc_inventory.md"
+
+# ============================================================================
+# Policy Configuration
+# ============================================================================
+
+policy:
+  # RAM allocation policy
+  ram:
+    # Fail if requested RAM + already allocated RAM > node total RAM
+    allow_overallocation: false
+
+  # Disk allocation policy
+  disk:
+    # Fail if requested disk > free space on storage pool
+    allow_overallocation: false
+
+  # CPU allocation policy
+  cpu:
+    # Warn if total CPU shares > node CPU cores (soft limit)
+    cpu_overcommit_threshold: 1.5  # Allow up to 1.5x overcommit with warning
+    # Set to null to disable warning
+    enable_warning: true

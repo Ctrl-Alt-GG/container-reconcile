@@ -1,0 +1,44 @@
+---
+# ============================================================================
+# Desired LXC Container Declarations
+# ============================================================================
+# Each container is defined with its desired state. The provision playbook
+# will match existing containers by hostname and reuse their VMID/IP if
+# they already exist. New containers get new VMID/IP from the managed ranges.
+
+desired_containers: []
+# Example container declaration:
+# - name: web-01
+#   hostname: web-01.example.com
+#   description: "Web server container"
+#
+#   # Network configuration
+#   network:
+#     subnet: "10.0.1.0/24"  # Which managed subnet to use (defaults to first)
+#     ip_address: null       # Set explicitly or leave null for auto-allocation
+#     gateway: null          # Defaults to subnet gateway
+#
+#   # Resource allocation
+#   cpu: 2
+#   memory_mb: 1024
+#   disk_gb: 20
+#
+#   # Container template (defaults to lxc_default_template if omitted)
+#   template: "local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
+#
+#   # Optional: Enforce container on specific node (overrides auto-selection)
+#   # preferred_node: "pve-01"
+#
+#   # Optional: Enforce container on specific storage pool
+#   # preferred_storage: "local-lvm"
+#
+#   # Optional tags for organization
+#   tags:
+#     - web
+#     - production
+#
+#   # Optional: Post-creation customization (e.g., cloud-init config)
+#   # post_creation_script: |
+#   #   #!/bin/bash
+#   #   apt-get update
+#   #   apt-get install -y nginx

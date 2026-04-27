@@ -1,0 +1,7 @@
+---
+- name: Generate Proxmox LXC Container Report
+  hosts: proxmox_control
+  gather_facts: false
+  roles:
+    - role: proxmox_discovery
+    - role: proxmox_report
